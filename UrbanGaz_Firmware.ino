@@ -1,7 +1,6 @@
 /*
- * URBANGAZ ATTENDANCE SYSTEM FIRMWARE
- * Author: Lian Mollick
- * Version: 0.5 (UI & Animation Test)
+ * URBANGAZ ATTENDANCE SYSTEM FIRMWARE v0.6
+ * Flow: Boot Logo -> Network Check -> Menu
  */
 
 #include <SPI.h>
@@ -10,42 +9,42 @@
 #include <Adafruit_SSD1306.h>
 #include <Fonts/Org_01.h> 
 
-// Include modular files
 #include "config.h"
 #include "assets.h"
 #include "animations.h"
 
-// Initialize Display
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-// System State Machine
-enum SystemState { STATE_BOOT, STATE_MENU, STATE_ANIMATION };
+enum SystemState { STATE_BOOT, STATE_NETWORK_CHECK, STATE_MENU, STATE_ANIMATION };
 SystemState currentState = STATE_BOOT;
 
-// Menu Logic
 int menuIndex = 0;
-const char* menuItems[] = {"Test Success", "Test Fail"};
+const char* menuItems[] = {"Face Unlock", "System Info"};
 
 void setup() {
   Serial.begin(115200);
 
-  // Pin Modes
+  // Hardware Init
   pinMode(BTN_SELECT, INPUT_PULLUP);
-  pinMode(BTN_UP, INPUT); // Requires external pulldown resistor usually for GPIO 34
+  pinMode(BTN_UP, INPUT); 
   pinMode(BTN_DOWN, INPUT_PULLUP); 
   pinMode(BUZZER_PIN, OUTPUT);
 
-  // Init I2C
   Wire.begin(I2C_SDA, I2C_SCL);
 
-  // Init OLED
   if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
+    Serial.println(F("SSD1306 failed"));
     for(;;);
   }
   
-  display.clearDisplay();
+  // 1. Start Boot Sequence
   runBootSequence();
+  
+  // 2. Run Network Check immediately after boot
+  runNetworkCheck();
+  
+  // 3. Go to Menu
+  currentState = STATE_MENU;
 }
 
 void loop() {
@@ -53,43 +52,65 @@ void loop() {
     case STATE_MENU:
       handleMenu();
       break;
-    case STATE_ANIMATION:
-      // Animation handles its own loop blocking briefly
-      currentState = STATE_MENU; 
-      break;
+    // Other states handled within their specific functions for now
   }
 }
 
-// --- LOGIC FUNCTIONS ---
+// --- SEQUENCES ---
 
 void runBootSequence() {
   display.clearDisplay();
-  
-  // Draw Logo
   display.drawBitmap(47, 6, image_UGL_mono_bits, 36, 32, 1);
-
-  // Draw Text
+  
   display.setTextColor(SSD1306_WHITE);
   display.setFont(&Org_01);
   display.setCursor(28, 46); display.print("Urban GAZ LTD");
   display.setCursor(20, 54); display.print("Attendance Centre");
   display.display();
 
-  // Robot Chirp Sound
+  // Robot Chirp
   tone(BUZZER_PIN, 2000, 100); delay(120);
   tone(BUZZER_PIN, 2500, 100); delay(120);
-  tone(BUZZER_PIN, 3500, 150); delay(1500); // Hold logo
+  tone(BUZZER_PIN, 3500, 150); delay(2000); 
+}
+
+void runNetworkCheck() {
+  // A. Simulation Loop: Play the animation 2 times to simulate "Connecting..."
+  for(int loop = 0; loop < 2; loop++) {
+    for (int i = 0; i < anim_wifi_frames; i++) {
+      display.clearDisplay();
+      
+      // Draw Animation Centered
+      display.drawBitmap(32, 0, anim_wifi[i], 64, 64, 1);
+      
+      // Draw "Connecting" Text at bottom
+      display.setFont(); // System Font
+      display.setCursor(35, 55); 
+      display.println("Connecting");
+      
+      display.display();
+      delay(FRAME_DELAY);
+    }
+  }
+
+  // B. Connected Success Screen
+  display.clearDisplay();
+  display.drawBitmap(32, 0, anim_wifi[anim_wifi_frames-1], 64, 64, 1); // Show last frame (usually full signal)
+  display.setCursor(30, 55);
+  display.println("CONNECTED!");
+  display.display();
   
-  currentState = STATE_MENU;
+  // Success Beep
+  tone(BUZZER_PIN, 1000, 100); delay(100);
+  tone(BUZZER_PIN, 2000, 200); delay(1000);
 }
 
 void handleMenu() {
   display.clearDisplay();
-  display.setFont(); // Reset font
-  display.setCursor(0, 0); display.println("ANIMATION TEST");
+  display.setFont(); 
+  display.setCursor(0, 0); display.println("URBANGAZ MAIN MENU");
   display.drawLine(0, 10, 128, 10, SSD1306_WHITE);
 
-  // Draw Menu Items
   for (int i = 0; i < 2; i++) {
     if (i == menuIndex) {
       display.fillRect(0, 20 + (i * 15), 128, 14, SSD1306_WHITE);
@@ -102,35 +123,15 @@ void handleMenu() {
   }
   display.display();
 
-  // Button Inputs
+  // Button Logic
   if (digitalRead(BTN_DOWN) == LOW) {
-    menuIndex = !menuIndex; 
-    playClick(); delay(200);
+    menuIndex = !menuIndex; delay(200);
   }
-  if (digitalRead(BTN_UP) == HIGH) { // Check your wiring logic for Pin 34
-    menuIndex = !menuIndex; 
-    playClick(); delay(200);
+  if (digitalRead(BTN_UP) == HIGH) {
+    menuIndex = !menuIndex; delay(200);
   }
   if (digitalRead(BTN_SELECT) == LOW) {
-    playSelect(); delay(200);
-    
-    // Trigger Animation
-    if (menuIndex == 0) playAnimation(anim_success, anim_success_frames);
-    else playAnimation(anim_fail, anim_fail_frames);
+    tone(BUZZER_PIN, 2000, 50); delay(200);
+    // Add logic here to enter Face ID mode
   }
 }
-
-// Generic Animation Player
-void playAnimation(const byte animArray[][512], int frames) {
-  for (int i = 0; i < frames; i++) {
-    display.clearDisplay();
-    // Center 64x64 on 128x64 screen -> X=32, Y=0
-    display.drawBitmap(32, 0, animArray[i], 64, 64, 1);
-    display.display();
-    delay(FRAME_DELAY);
-  }
-  delay(500); // Pause after animation
-}
-
-void playClick() { tone(BUZZER_PIN, 1000, 20); }
-void playSelect() { tone(BUZZER_PIN, 2000, 50); }
