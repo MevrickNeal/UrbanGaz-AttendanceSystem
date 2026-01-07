@@ -20,5 +20,12 @@ const byte PROGMEM anim_fail[][512] = {
     // PASTE YOUR "Restart/Fail" ARRAY DATA HERE
     // Copy everything inside the { } from your second animation code block
 };
-
+// --- Animation 3: WiFi Search ---
+// Width: 64, Height: 64
+const int anim_wifi_frames = 28; 
+const byte PROGMEM anim_wifi[][512] = {
+  // PASTE THE DATA FROM YOUR WIFI SKETCH HERE
+  // Copy ONLY the content inside the curly braces { } from your provided sketch.
+  // Ensure you copy the lines starting with {0,0,0... and ending with ...},
+};
 #endif
